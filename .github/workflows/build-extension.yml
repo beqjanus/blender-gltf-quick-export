@@ -42,9 +42,11 @@ jobs:
         run: |
           blender_series="${BLENDER_VERSION%.*}"
           archive="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
-          curl -fsSLO "https://download.blender.org/release/Blender${blender_series}/${archive}"
-          tar -xf "${archive}"
-          echo "${GITHUB_WORKSPACE}/blender-${BLENDER_VERSION}-linux-x64" >> "$GITHUB_PATH"
+          blender_root="${RUNNER_TEMP}/blender-${BLENDER_VERSION}"
+          curl -fsSL "https://download.blender.org/release/Blender${blender_series}/${archive}" -o "${RUNNER_TEMP}/${archive}"
+          mkdir -p "${blender_root}"
+          tar -xf "${RUNNER_TEMP}/${archive}" -C "${blender_root}" --strip-components=1
+          echo "${blender_root}" >> "$GITHUB_PATH"
 
       - name: Build extension package
         run: |

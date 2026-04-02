@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "gltf_quick_export"
-version = "0.1.0"
+version = "0.1.1"
 name = "GLTF Quick Export"
 tagline = "Standalone GLB export and timed auto-export for Blender"
 maintainer = "Beq Janus <beqjanus@gmail.com>"
