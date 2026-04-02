@@ -1,0 +1,62 @@
+name: Build Preview Extension
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BLENDER_VERSION: 5.1.0
+  EXTENSION_ID: gltf_quick_export
+
+jobs:
+  build-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read manifest version
+        id: manifest
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import tomllib
+          from pathlib import Path
+
+          manifest = tomllib.loads(Path("blender_manifest.toml").read_text())
+          print(f"version={manifest['version']}")
+          PY
+
+      - name: Define preview package name
+        id: preview
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          echo "filename=${EXTENSION_ID}-${{ steps.manifest.outputs.version }}-preview-${short_sha}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Install Blender CLI
+        run: |
+          blender_series="${BLENDER_VERSION%.*}"
+          archive="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          curl -fsSLO "https://download.blender.org/release/Blender${blender_series}/${archive}"
+          tar -xf "${archive}"
+          echo "${GITHUB_WORKSPACE}/blender-${BLENDER_VERSION}-linux-x64" >> "$GITHUB_PATH"
+
+      - name: Build extension package
+        run: |
+          mkdir -p dist
+          blender --factory-startup --command extension build --source-dir . --output-dir dist
+          test -f "dist/${EXTENSION_ID}-${{ steps.manifest.outputs.version }}.zip"
+          mv "dist/${EXTENSION_ID}-${{ steps.manifest.outputs.version }}.zip" "dist/${{ steps.preview.outputs.filename }}"
+
+      - name: Upload packaged extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.preview.outputs.filename }}
+          path: dist/${{ steps.preview.outputs.filename }}
+          if-no-files-found: error
+          retention-days: 14

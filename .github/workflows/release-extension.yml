@@ -1,0 +1,67 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  BLENDER_VERSION: 5.1.0
+  EXTENSION_ID: gltf_quick_export
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read manifest version
+        id: manifest
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import tomllib
+          from pathlib import Path
+
+          manifest = tomllib.loads(Path("blender_manifest.toml").read_text())
+          print(f"version={manifest['version']}")
+          PY
+
+      - name: Verify tag matches manifest version
+        run: |
+          expected_tag="v${{ steps.manifest.outputs.version }}"
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "Release workflow must run from a tag push."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "Git tag ${GITHUB_REF_NAME} does not match manifest version ${expected_tag}."
+            exit 1
+          fi
+
+      - name: Install Blender CLI
+        run: |
+          blender_series="${BLENDER_VERSION%.*}"
+          archive="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          curl -fsSLO "https://download.blender.org/release/Blender${blender_series}/${archive}"
+          tar -xf "${archive}"
+          echo "${GITHUB_WORKSPACE}/blender-${BLENDER_VERSION}-linux-x64" >> "$GITHUB_PATH"
+
+      - name: Build extension package
+        run: |
+          mkdir -p dist
+          blender --factory-startup --command extension build --source-dir . --output-dir dist
+          test -f "dist/${EXTENSION_ID}-${{ steps.manifest.outputs.version }}.zip"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: GLTF Quick Export v${{ steps.manifest.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/${{ env.EXTENSION_ID }}-${{ steps.manifest.outputs.version }}.zip
